@@ -3,11 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Focus Planner - Real Streak Edition</title>
+    <title>Smart Focus Planner - EliXTech Sync Edition</title>
     <link rel="manifest" href="/Focus-Flow-/manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
         body { font-family: 'Inter', sans-serif; }
@@ -46,7 +52,8 @@
         .mood-btn { font-size: 24px; transition: transform 0.2s; filter: grayscale(1); }
         .mood-btn:hover, .mood-btn.active { filter: grayscale(0); transform: scale(1.2); }
         
-        .file-status-active { color: #10b981; }
+        .sync-active { color: #10b981; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
     </style>
 </head>
 <body class="bg-gradient-to-br from-slate-50 to-indigo-100 min-h-screen">
@@ -59,13 +66,13 @@
             
             <p class="text-sm font-bold text-slate-400 mb-2 uppercase">Wie fühlst du dich?</p>
             <div class="flex justify-around mb-6">
-                <button onclick="setMood('happy')" class="mood-btn" title="Gut">😊</button>
-                <button onclick="setMood('neutral')" class="mood-btn active" title="Neutral">😐</button>
-                <button onclick="setMood('tired')" class="mood-btn" title="Müde">😴</button>
+                <button onclick="setMood('happy')" class="mood-btn" id="mood-happy" title="Gut">😊</button>
+                <button onclick="setMood('neutral')" class="mood-btn active" id="mood-neutral" title="Neutral">😐</button>
+                <button onclick="setMood('tired')" class="mood-btn" id="mood-tired" title="Müde">😴</button>
             </div>
 
             <div class="space-y-3">
-                <button id="btnFinished" class="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg">Aufgabe speichern!</button>
+                <button id="btnFinished" class="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg">Quest loggen!</button>
                 <button onclick="closeModal()" class="w-full bg-slate-200 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-300 transition">Später</button>
             </div>
         </div>
@@ -75,17 +82,18 @@
         <header class="flex justify-between items-center mb-10">
             <div>
                 <h1 class="text-3xl font-black text-indigo-900 tracking-tight">FOCUS<span class="text-indigo-500">FLOW+</span></h1>
-                <p class="text-indigo-600 font-medium">Auto-Sync JSON Edition</p>
+                <div class="flex items-center gap-2 mt-1">
+                    <span id="syncDot" class="w-2 h-2 rounded-full bg-slate-400 transition-colors"></span>
+                    <p id="statusText" class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Verbinde EliXTech...</p>
+                </div>
             </div>
             <div class="flex flex-col items-end gap-2">
                 <div class="flex items-center gap-2">
-                    <button id="syncFileBtn" onclick="setupFileHandle()" class="text-[10px] font-bold bg-white px-3 py-2 rounded-lg shadow-sm border border-indigo-100 hover:bg-indigo-50 transition">
-                        📁 <span id="syncStatus">Datei verknüpfen</span>
-                    </button>
-                    <button onclick="importData()" class="text-[10px] font-bold bg-white px-3 py-2 rounded-lg shadow-sm border border-indigo-100">Laden</button>
-                    <button onclick="exportDataManually()" class="text-[10px] font-bold bg-indigo-600 text-white px-3 py-2 rounded-lg shadow-sm">Backup</button>
+                    <a href="index.html" class="text-[10px] font-bold bg-white px-3 py-2 rounded-lg shadow-sm border border-indigo-100 hover:bg-indigo-50 transition">
+                        🏠 Zentrale
+                    </a>
+                    <div id="clock" class="hidden md:block text-sm font-mono font-bold text-indigo-800 ml-4">00:00:00</div>
                 </div>
-                <div id="clock" class="hidden md:block text-sm font-mono font-bold text-indigo-800">00:00:00</div>
             </div>
         </header>
 
@@ -199,16 +207,30 @@
     </div>
 
     <script>
-        // --- DATA & FILE SYSTEM ---
-        let tasks = JSON.parse(localStorage.getItem('tasks_quest_v5')) || [];
-        let lifetimeSeconds = parseInt(localStorage.getItem('lifetime_fokus_v5')) || 0;
-        let lastStudyDate = localStorage.getItem('last_study_date_v5');
-        let currentStreak = parseInt(localStorage.getItem('current_streak_v5')) || 0;
-        let moodHistory = JSON.parse(localStorage.getItem('mood_history_v5')) || [];
-        
-        let fileHandle = null; // Für File System Access API
+        // --- FIREBASE CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAYVCDAIlFnHhMr2sdeKruFoNW68MBro9Y",
+            authDomain: "elixtech.firebaseapp.com",
+            databaseURL: "https://elixtech-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "elixtech",
+            storageBucket: "elixtech.firebasestorage.app",
+            messagingSenderId: "435055443177",
+            appId: "1:435055443177:web:70faab26bb8dd2aae2c478"
+        };
 
-        // --- TIMER ---
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        // --- DATA STATE ---
+        let tasks = [];
+        let lifetimeSeconds = 0;
+        let lastStudyDate = null;
+        let currentStreak = 0;
+        let moodHistory = [];
+        let userPath = "";
+
+        // --- TIMER STATE ---
         let timerSeconds = 25 * 60;
         let timerRunning = false;
         let timerInterval;
@@ -216,120 +238,75 @@
         let currentMood = 'neutral';
         const XP_PER_LEVEL = 1000;
 
-        // UI
+        // UI Refs
         const taskList = document.getElementById('taskList');
         const timerDisplay = document.getElementById('timerDisplay');
         const timerToggle = document.getElementById('timerToggle');
         const modal = document.getElementById('modalOverlay');
 
-        // --- FILE SYSTEM ACCESS API ---
-        async function setupFileHandle() {
-            try {
-                // Öffnet den Datei-Speichern Dialog
-                fileHandle = await window.showSaveFilePicker({
-                    suggestedName: 'focus_flow_data.json',
-                    types: [{
-                        description: 'JSON Files',
-                        accept: {'application/json': ['.json']},
-                    }],
-                });
-                document.getElementById('syncStatus').innerText = "Verbunden";
-                document.getElementById('syncStatus').parentElement.classList.add('file-status-active');
+        // --- AUTH CHECK & SYNC ---
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                userPath = 'users/' + user.uid + '/apps/focusFlow';
+                document.getElementById('statusText').innerText = "Live-Sync Aktiv";
+                document.getElementById('statusText').classList.add('sync-active');
+                document.getElementById('syncDot').classList.replace('bg-slate-400', 'bg-emerald-500');
                 
-                // Einmalig Daten in die neue Datei schreiben
-                await writeToFile();
-            } catch (err) {
-                console.error("Datei-Zugriff abgelehnt", err);
-            }
-        }
-
-        async function writeToFile() {
-            if (!fileHandle) return;
-            try {
-                const writable = await fileHandle.createWritable();
-                const data = {
-                    tasks,
-                    lifetimeSeconds,
-                    moodHistory,
-                    currentStreak,
-                    lastStudyDate,
-                    updatedAt: new Date().toISOString()
-                };
-                await writable.write(JSON.stringify(data, null, 2));
-                await writable.close();
-            } catch (err) {
-                console.error("Fehler beim Schreiben", err);
-            }
-        }
-
-        // --- CORE SAVING ---
-        async function saveData() {
-            // Immer LocalStorage als Backup
-            localStorage.setItem('tasks_quest_v5', JSON.stringify(tasks));
-            localStorage.setItem('lifetime_fokus_v5', lifetimeSeconds);
-            localStorage.setItem('current_streak_v5', currentStreak);
-            localStorage.setItem('last_study_date_v5', lastStudyDate);
-            localStorage.setItem('mood_history_v5', JSON.stringify(moodHistory));
-            
-            // Auto-Write in Datei falls verknüpft
-            if (fileHandle) await writeToFile();
-            
-            renderTasks();
-            updateCharts();
-        }
-
-        async function importData() {
-            try {
-                const [handle] = await window.showOpenFilePicker();
-                const file = await handle.getFile();
-                const content = await file.text();
-                const data = JSON.parse(content);
-                
-                tasks = data.tasks || [];
-                lifetimeSeconds = data.lifetimeSeconds || 0;
-                moodHistory = data.moodHistory || [];
-                currentStreak = data.currentStreak || 0;
-                lastStudyDate = data.lastStudyDate || null;
-                
-                fileHandle = handle; // Automatisch verknüpfen
-                document.getElementById('syncStatus').innerText = "Verbunden";
-                
-                saveData();
-            } catch (err) {
-                console.log("Import abgebrochen");
-            }
-        }
-
-        function exportDataManually() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({tasks, lifetimeSeconds, moodHistory, currentStreak}));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", "manual_backup.json");
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
-        }
-
-        // --- UI LOGIC ---
-        function checkPrediction(val) {
-            const box = document.getElementById('predictionBox');
-            if (val.length < 2) { box.classList.add('hidden'); return; }
-            const match = tasks.find(t => t.text.toLowerCase().includes(val.toLowerCase().trim()));
-            if (match) {
-                document.getElementById('prevTime').innerText = match.minutes;
-                box.classList.remove('hidden');
+                // Realtime Listeners
+                startDataListeners();
             } else {
-                box.classList.add('hidden');
+                window.location.href = 'index.html';
+            }
+        });
+
+        function startDataListeners() {
+            // Listen for tasks
+            db.ref(userPath + '/tasks').on('value', snapshot => {
+                const data = snapshot.val();
+                tasks = data ? Object.keys(data).map(key => ({...data[key], fbKey: key})) : [];
+                renderTasks();
+                updateCharts();
+            });
+
+            // Listen for stats/history
+            db.ref(userPath + '/stats').on('value', snapshot => {
+                const data = snapshot.val() || {};
+                lifetimeSeconds = data.lifetimeSeconds || 0;
+                lastStudyDate = data.lastStudyDate || null;
+                currentStreak = data.currentStreak || 0;
+                moodHistory = data.moodHistory || [];
+                updateStatsUI();
+                updateCharts();
+            });
+        }
+
+        // --- DATA ACTIONS ---
+        function syncTasksToFirebase() {
+            // Wir nutzen push/update direkt in den Aktionen, 
+            // der Listener oben kümmert sich um das UI Update.
+        }
+
+        function deleteTask(fbKey, e) {
+            e.stopPropagation();
+            db.ref(userPath + '/tasks/' + fbKey).remove();
+            if(currentTaskId === fbKey) resetTimer();
+        }
+
+        function toggleTask(fbKey, e) {
+            if(e) e.stopPropagation();
+            const task = tasks.find(t => t.fbKey === fbKey);
+            if (task) {
+                const newState = !task.completed;
+                db.ref(userPath + '/tasks/' + fbKey).update({ completed: newState });
+                
+                if(newState) {
+                    confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+                    recordStudySession();
+                }
             }
         }
 
-        function usePrediction() {
-            const val = document.getElementById('taskInput').value;
-            const match = tasks.find(t => t.text.toLowerCase().includes(val.toLowerCase().trim()));
-            document.getElementById('timeInput').value = match.minutes;
-            document.getElementById('predictionBox').classList.add('hidden');
-        }
-
+        // --- UI RENDERING ---
         function renderTasks() {
             taskList.innerHTML = '';
             document.getElementById('taskCount').innerText = tasks.length;
@@ -337,9 +314,9 @@
             
             tasks.forEach((task) => {
                 const div = document.createElement('div');
-                div.className = `task-item flex items-center justify-between p-5 rounded-[1.5rem] transition-all ${task.id === currentTaskId ? 'ring-4 ring-indigo-400 bg-white' : ''} ${getPriorityClass(task.priority, task.completed)}`;
+                div.className = `task-item flex items-center justify-between p-5 rounded-[1.5rem] transition-all ${task.fbKey === currentTaskId ? 'ring-4 ring-indigo-400 bg-white' : ''} ${getPriorityClass(task.priority, task.completed)}`;
                 div.innerHTML = `
-                    <div class="flex items-center gap-4 flex-1" onclick="selectTask(${task.id})">
+                    <div class="flex items-center gap-4 flex-1" onclick="selectTask('${task.fbKey}')">
                         <div class="w-10 h-10 rounded-xl ${task.completed ? 'bg-emerald-500 text-white' : 'bg-white/50'} flex items-center justify-center font-bold">
                             ${task.completed ? '✓' : task.minutes}
                         </div>
@@ -349,43 +326,22 @@
                         </div>
                     </div>
                     <div class="flex gap-2">
-                        <button onclick="toggleTask(${task.id}, event)" class="w-9 h-9 flex items-center justify-center bg-white/50 rounded-lg">${task.completed ? '↩️' : '✅'}</button>
-                        <button onclick="deleteTask(${task.id}, event)" class="w-9 h-9 flex items-center justify-center bg-rose-50 text-rose-500 rounded-lg">🗑️</button>
+                        <button onclick="toggleTask('${task.fbKey}', event)" class="w-9 h-9 flex items-center justify-center bg-white/50 rounded-lg">${task.completed ? '↩️' : '✅'}</button>
+                        <button onclick="deleteTask('${task.fbKey}', event)" class="w-9 h-9 flex items-center justify-center bg-rose-50 text-rose-500 rounded-lg">🗑️</button>
                     </div>
                 `;
                 taskList.appendChild(div);
             });
-            updateStatsUI();
         }
 
-        function selectTask(id) {
-            const task = tasks.find(t => t.id === id);
+        function selectTask(fbKey) {
+            const task = tasks.find(t => t.fbKey === fbKey);
             if (!task || task.completed) return;
-            currentTaskId = id;
+            currentTaskId = fbKey;
             timerSeconds = task.minutes * 60;
             document.getElementById('activeTaskLabel').innerText = `FOKUS: ${task.text}`;
             updateTimerDisplay();
             renderTasks();
-        }
-
-        function deleteTask(id, e) {
-            e.stopPropagation();
-            tasks = tasks.filter(t => t.id !== id);
-            if(currentTaskId === id) resetTimer();
-            saveData();
-        }
-
-        function toggleTask(id, e) {
-            if(e) e.stopPropagation();
-            const task = tasks.find(t => t.id === id);
-            if (task) {
-                task.completed = !task.completed;
-                if(task.completed) {
-                    confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
-                    recordStudySession();
-                }
-            }
-            saveData();
         }
 
         // --- TIMER ENGINE ---
@@ -396,11 +352,8 @@
                 timerInterval = setInterval(() => {
                     if (timerSeconds > 0) {
                         timerSeconds--;
-                        lifetimeSeconds++;
-                        if(currentTaskId) {
-                            const task = tasks.find(t => t.id === currentTaskId);
-                            if(task) task.actualSeconds = (task.actualSeconds || 0) + 1;
-                        }
+                        // Wir updaten lifetimeSeconds erst am Ende der Session in Firebase, 
+                        // um API-Calls zu sparen, oder live? Machen wir es am Ende für Stabilität.
                         updateTimerDisplay();
                     } else {
                         handleTimerEnd();
@@ -408,7 +361,6 @@
                 }, 1000);
             } else {
                 clearInterval(timerInterval);
-                saveData();
             }
         };
 
@@ -421,21 +373,36 @@
         function setMood(m) {
             currentMood = m;
             document.querySelectorAll('.mood-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
+            document.getElementById('mood-' + m).classList.add('active');
         }
 
         document.getElementById('btnFinished').onclick = () => {
-            moodHistory.push({ mood: currentMood, time: new Date().getHours(), date: new Date().toISOString().split('T')[0] });
-            if (currentTaskId) toggleTask(currentTaskId);
+            const now = new Date();
+            const newMoodEntry = { mood: currentMood, time: now.getHours(), date: now.toISOString().split('T')[0] };
+            
+            // Stats Update
+            let updatedMoodHistory = [...moodHistory, newMoodEntry];
+            let taskSeconds = 0;
+            if(currentTaskId) {
+               const t = tasks.find(x => x.fbKey === currentTaskId);
+               taskSeconds = t ? t.minutes * 60 : 0;
+               toggleTask(currentTaskId);
+            }
+
+            db.ref(userPath + '/stats').update({
+                moodHistory: updatedMoodHistory,
+                lifetimeSeconds: lifetimeSeconds + taskSeconds,
+                lastStudyDate: lastStudyDate,
+                currentStreak: currentStreak
+            });
+
             modal.style.display = 'none';
             resetTimer();
-            saveData();
         };
 
         function closeModal() {
             modal.style.display = 'none';
             resetTimer();
-            saveData();
         }
 
         // --- CHARTS ---
@@ -466,9 +433,11 @@
             const total = tasks.length;
             document.getElementById('percentText').innerText = (total > 0 ? Math.round((done/total)*100) : 0) + "%";
             if(mainChart) { mainChart.data.datasets[0].data = total === 0 ? [1,0] : [total-done, done]; mainChart.update(); }
+            
             const moods = { happy: 0, neutral: 0, tired: 0 };
             moodHistory.forEach(h => moods[h.mood]++);
             if(moodChart) { moodChart.data.datasets[0].data = [moods.happy, moods.neutral, moods.tired]; moodChart.update(); }
+            
             const hourStats = Array(24).fill(0);
             moodHistory.forEach(h => hourStats[h.time]++);
             if(timeChart) { timeChart.data.datasets[0].data = hourStats; timeChart.update(); }
@@ -496,7 +465,11 @@
         }
         function recordStudySession() {
             const today = new Date().toISOString().split('T')[0];
-            if (lastStudyDate !== today) { currentStreak++; lastStudyDate = today; }
+            if (lastStudyDate !== today) { 
+                currentStreak++; 
+                lastStudyDate = today; 
+                db.ref(userPath + '/stats').update({ currentStreak, lastStudyDate });
+            }
         }
         function updateStatsUI() {
             document.getElementById('lifetimeDisplay').innerText = Math.floor(lifetimeSeconds/60) + "m " + (lifetimeSeconds%60) + "s";
@@ -507,21 +480,43 @@
             document.getElementById('streakDisplay').innerText = `🔥 ${currentStreak} Tage`;
         }
 
+        function checkPrediction(val) {
+            const box = document.getElementById('predictionBox');
+            if (val.length < 2) { box.classList.add('hidden'); return; }
+            const match = tasks.find(t => t.text.toLowerCase().includes(val.toLowerCase().trim()));
+            if (match) {
+                document.getElementById('prevTime').innerText = match.minutes;
+                box.classList.remove('hidden');
+            } else { box.classList.add('hidden'); }
+        }
+
+        function usePrediction() {
+            const val = document.getElementById('taskInput').value;
+            const match = tasks.find(t => t.text.toLowerCase().includes(val.toLowerCase().trim()));
+            document.getElementById('timeInput').value = match.minutes;
+            document.getElementById('predictionBox').classList.add('hidden');
+        }
+
         document.getElementById('addTaskBtn').onclick = () => {
             const text = document.getElementById('taskInput').value.trim();
             const minutes = parseInt(document.getElementById('timeInput').value) || 25;
             if (!text) return;
-            tasks.push({ text, priority: parseInt(document.getElementById('prioritySelect').value), minutes, completed: false, id: Date.now(), actualSeconds: 0 });
+            
+            db.ref(userPath + '/tasks').push({
+                text, 
+                priority: parseInt(document.getElementById('prioritySelect').value), 
+                minutes, 
+                completed: false, 
+                createdAt: Date.now()
+            });
+
             document.getElementById('taskInput').value = '';
             document.getElementById('timeInput').value = '';
-            saveData();
         };
 
         window.onload = () => {
             initCharts();
-            renderTasks();
             updateTimerDisplay();
-            updateCharts();
             setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('de-DE'); }, 1000);
         };
     </script>
