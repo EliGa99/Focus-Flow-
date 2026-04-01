@@ -43,12 +43,10 @@
             justify-content: center;
         }
 
-        @keyframes pulse-gold {
-            0% { shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
-            70% { shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
-            100% { shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-        }
-        .streak-active { animation: pulse-gold 2s infinite; }
+        .mood-btn { font-size: 24px; transition: transform 0.2s; filter: grayscale(1); }
+        .mood-btn:hover, .mood-btn.active { filter: grayscale(0); transform: scale(1.2); }
+        
+        .file-status-active { color: #10b981; }
     </style>
 </head>
 <body class="bg-gradient-to-br from-slate-50 to-indigo-100 min-h-screen">
@@ -58,10 +56,17 @@
         <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center mx-4">
             <div class="text-5xl mb-4">🏆</div>
             <h3 class="text-2xl font-bold text-slate-800 mb-2">Zeit abgelaufen!</h3>
-            <p id="modalQuestion" class="text-slate-600 mb-6">Hast du dein Ziel erreicht?</p>
+            
+            <p class="text-sm font-bold text-slate-400 mb-2 uppercase">Wie fühlst du dich?</p>
+            <div class="flex justify-around mb-6">
+                <button onclick="setMood('happy')" class="mood-btn" title="Gut">😊</button>
+                <button onclick="setMood('neutral')" class="mood-btn active" title="Neutral">😐</button>
+                <button onclick="setMood('tired')" class="mood-btn" title="Müde">😴</button>
+            </div>
+
             <div class="space-y-3">
-                <button id="btnFinished" class="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg">Ja, Mission erfüllt!</button>
-                <button id="btnPause" class="w-full bg-emerald-500 text-white py-4 rounded-xl font-bold hover:bg-emerald-600 transition shadow-lg">Pause (Energie aufladen)</button>
+                <button id="btnFinished" class="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg">Quest loggen!</button>
+                <button onclick="closeModal()" class="w-full bg-slate-200 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-300 transition">Später</button>
             </div>
         </div>
     </div>
@@ -70,276 +75,287 @@
         <header class="flex justify-between items-center mb-10">
             <div>
                 <h1 class="text-3xl font-black text-indigo-900 tracking-tight">FOCUS<span class="text-indigo-500">FLOW+</span></h1>
-                <p class="text-indigo-600 font-medium">Level up your learning with Focus Flow+</p>
+                <p class="text-indigo-600 font-medium">Auto-Sync JSON Edition</p>
             </div>
-            <div id="clock" class="hidden md:block text-xl font-mono font-bold text-indigo-800 bg-white px-4 py-2 rounded-xl shadow-sm border border-indigo-50">
-                00:00:00
+            <div class="flex flex-col items-end gap-2">
+                <div class="flex items-center gap-2">
+                    <button id="syncFileBtn" onclick="setupFileHandle()" class="text-[10px] font-bold bg-white px-3 py-2 rounded-lg shadow-sm border border-indigo-100 hover:bg-indigo-50 transition">
+                        📁 <span id="syncStatus">Datei verknüpfen</span>
+                    </button>
+                    <button onclick="importData()" class="text-[10px] font-bold bg-white px-3 py-2 rounded-lg shadow-sm border border-indigo-100">Laden</button>
+                    <button onclick="exportDataManually()" class="text-[10px] font-bold bg-indigo-600 text-white px-3 py-2 rounded-lg shadow-sm">Backup</button>
+                </div>
+                <div id="clock" class="hidden md:block text-sm font-mono font-bold text-indigo-800">00:00:00</div>
             </div>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
             <div class="lg:col-span-1 space-y-6">
-                <!-- RPG Status Card -->
+                <!-- Status Card -->
                 <div class="bg-indigo-900 p-6 rounded-[2rem] shadow-2xl text-white relative overflow-hidden">
                     <div class="relative z-10">
                         <div class="flex justify-between items-end mb-2">
-                            <span id="rankBadge" class="bg-indigo-500 text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-widest text-white">Anfänger</span>
+                            <span id="rankBadge" class="bg-indigo-500 text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-widest text-white">Focus Pro</span>
                             <span class="text-xs font-bold opacity-60 uppercase">Level <span id="levelText">1</span></span>
                         </div>
-                        <h2 class="text-2xl font-black mb-4">Dein Fortschritt</h2>
-                        
+                        <h2 class="text-2xl font-black mb-4">Fortschritt</h2>
                         <div class="space-y-4">
                             <div>
                                 <div class="flex justify-between text-[10px] mb-1 font-bold uppercase opacity-70">
-                                    <span>Erfahrung (EP)</span>
-                                    <span id="xpText">0 / 100</span>
+                                    <span>XP</span>
+                                    <span id="xpText">0 / 1000</span>
                                 </div>
-                                <div class="bg-white/10 h-3 rounded-full overflow-hidden border border-white/10">
-                                    <div id="levelBar" class="bg-gradient-to-r from-cyan-400 to-indigo-400 h-full transition-all duration-500" style="width: 0%"></div>
+                                <div class="bg-white/10 h-3 rounded-full overflow-hidden">
+                                    <div id="levelBar" class="bg-cyan-400 h-full transition-all duration-500" style="width: 0%"></div>
                                 </div>
                             </div>
-                            
                             <div class="pt-2 border-t border-white/10 flex justify-between">
                                 <div>
-                                    <p class="text-[10px] opacity-50 font-bold uppercase">Gesamtzeit</p>
+                                    <p class="text-[10px] opacity-50 font-bold uppercase">Total</p>
                                     <p id="lifetimeDisplay" class="text-sm font-bold tabular-nums">0s</p>
                                 </div>
                                 <div class="text-right">
-                                    <p class="text-[10px] opacity-50 font-bold uppercase">Tages-Streak</p>
-                                    <p id="streakDisplay" class="text-sm font-bold">🔥 1 Tag</p>
+                                    <p class="text-[10px] opacity-50 font-bold uppercase">Streak</p>
+                                    <p id="streakDisplay" class="text-sm font-bold">🔥 0 Tage</p>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="absolute -right-4 -bottom-4 text-8xl opacity-10 grayscale">⭐</div>
                 </div>
 
-                <!-- Eingabe -->
-                <div class="glass-card p-6 rounded-3xl shadow-xl border-b-4 border-indigo-200">
-                    <h2 class="text-lg font-bold mb-4 text-slate-800 flex items-center gap-2">
-                        <span>🎯</span> Neue Quest
-                    </h2>
+                <!-- Input -->
+                <div class="glass-card p-6 rounded-3xl shadow-xl">
+                    <h2 class="text-lg font-bold mb-4 text-slate-800">🎯 Neue Quest</h2>
                     <div class="space-y-4">
-                        <input type="text" id="taskInput" placeholder="Was ist dein Ziel?" 
-                               class="w-full px-4 py-3 rounded-xl border-none ring-2 ring-indigo-50 focus:ring-indigo-400 outline-none transition">
-                        
+                        <div class="relative">
+                            <input type="text" id="taskInput" placeholder="Was willst du erreichen?" 
+                                   class="w-full px-4 py-3 rounded-xl bg-slate-50 border-none ring-2 ring-transparent focus:ring-indigo-400 outline-none transition"
+                                   oninput="checkPrediction(this.value)">
+                            <div id="predictionBox" class="hidden absolute top-full left-0 w-full mt-1 bg-amber-50 border border-amber-200 p-3 rounded-xl text-[11px] z-20 shadow-xl">
+                                Letztes Mal: <span id="prevTime" class="font-bold">0</span> Min. Zeit übernehmen? <button onclick="usePrediction()" class="text-indigo-600 font-bold underline ml-2">Übernehmen</button>
+                            </div>
+                        </div>
                         <div class="grid grid-cols-2 gap-3">
-                            <select id="prioritySelect" class="px-3 py-2 rounded-xl bg-indigo-50 border-none text-indigo-700 font-bold outline-none cursor-pointer">
+                            <select id="prioritySelect" class="px-3 py-2 rounded-xl bg-slate-50 border-none text-indigo-700 font-bold outline-none">
                                 <option value="1">Normal</option>
                                 <option value="2" selected>Wichtig</option>
-                                <option value="3">BOSS-GEGNER</option>
+                                <option value="3">BOSS</option>
                             </select>
-                            <input type="number" id="timeInput" placeholder="Minuten" 
-                                   class="px-3 py-2 rounded-xl bg-indigo-50 border-none text-indigo-700 font-bold outline-none">
+                            <input type="number" id="timeInput" placeholder="Min." class="px-3 py-2 rounded-xl bg-slate-50 border-none text-indigo-700 font-bold outline-none">
                         </div>
-                        
-                        <button id="addTaskBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition shadow-lg active:scale-95">
+                        <button id="addTaskBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl transition shadow-lg active:scale-95">
                             Quest starten
                         </button>
                     </div>
                 </div>
 
-                <!-- Statistik -->
+                <!-- Stats -->
                 <div class="glass-card p-6 rounded-3xl shadow-xl text-center">
                     <div class="chart-container">
                         <canvas id="statsChart"></canvas>
                         <div class="chart-inner-text">
-                            <span id="percentText" class="text-2xl font-black text-indigo-700">0%</span><br>
-                            <span class="text-[10px] text-slate-400 uppercase font-black tracking-tighter">Erfolg</span>
+                            <span id="percentText" class="text-2xl font-black text-indigo-700">0%</span>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="lg:col-span-2 space-y-6">
-                <!-- Smart Timer -->
-                <div id="timerCard" class="bg-indigo-900 text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden transition-all duration-700 border-4 border-white/5">
+                <!-- Timer -->
+                <div id="timerCard" class="bg-indigo-900 text-white p-12 rounded-[3rem] shadow-2xl relative overflow-hidden transition-all duration-700">
                     <div class="relative z-10 flex flex-col items-center text-center">
-                        <div id="activeTaskLabel" class="text-indigo-300 font-black tracking-[0.2em] uppercase text-[10px] mb-2 bg-white/5 px-4 py-1 rounded-full">Bereit für Fokus</div>
-                        <div id="timerDisplay" class="text-[8rem] leading-none font-black mb-8 tracking-tighter tabular-nums drop-shadow-2xl">25:00</div>
+                        <div id="activeTaskLabel" class="text-indigo-300 font-black uppercase text-[10px] mb-4 bg-white/10 px-4 py-1 rounded-full tracking-widest">Warte auf Quest...</div>
+                        <div id="timerDisplay" class="text-[9rem] leading-none font-black mb-8 tracking-tighter tabular-nums drop-shadow-xl">25:00</div>
                         <div class="flex gap-4">
-                            <button id="timerToggle" class="bg-white text-indigo-900 px-14 py-5 rounded-2xl font-black hover:scale-105 transition-transform shadow-2xl uppercase tracking-widest text-sm">
-                                Start
-                            </button>
-                            <button id="timerReset" class="bg-white/10 text-white px-8 py-5 rounded-2xl font-bold hover:bg-white/20 transition uppercase text-xs tracking-widest">
-                                Reset
-                            </button>
+                            <button id="timerToggle" class="bg-white text-indigo-900 px-16 py-5 rounded-2xl font-black hover:scale-105 transition-transform shadow-2xl uppercase tracking-widest text-sm">Start</button>
+                            <button id="timerReset" class="bg-white/10 text-white px-8 py-5 rounded-2xl font-bold hover:bg-white/20 transition uppercase text-xs">Reset</button>
                         </div>
-                    </div>
-                    <!-- Dekoration -->
-                    <div class="absolute top-0 right-0 p-8">
-                        <div id="timerStatusIcon" class="text-3xl opacity-20">⏳</div>
                     </div>
                 </div>
 
-                <!-- Aufgabenliste -->
-                <div class="glass-card p-8 rounded-[3rem] shadow-xl min-h-[400px]">
-                    <div class="flex justify-between items-center mb-8">
-                        <h2 class="text-2xl font-black text-slate-800 tracking-tight uppercase italic">Quest Log <span id="taskCount" class="ml-2 text-indigo-400 not-italic">0</span></h2>
-                    </div>
-                    <div id="taskList" class="space-y-4">
-                        <!-- Aufgaben -->
+                <!-- Quest Log -->
+                <div class="glass-card p-8 rounded-[3rem] shadow-xl min-h-[300px]">
+                    <h2 class="text-2xl font-black text-slate-800 mb-6 uppercase italic">Quest Log <span id="taskCount" class="ml-2 text-indigo-400">0</span></h2>
+                    <div id="taskList" class="space-y-4"></div>
+                </div>
+
+                <!-- Analyse -->
+                <div class="glass-card p-8 rounded-[3rem] shadow-xl">
+                    <h2 class="text-xl font-black text-slate-800 mb-6">ANALYSE</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-center">
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase mb-4">Fokus nach Stimmung</p>
+                            <canvas id="moodStatsChart" height="150"></canvas>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase mb-4">Produktivität / Uhrzeit</p>
+                            <canvas id="timeStatsChart" height="150"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    <footer>Made by Elias</footer>
 
     <script>
-        // --- DATA PERSISTENCE ---
-        let tasks = JSON.parse(localStorage.getItem('tasks_quest_v4')) || [];
-        let lifetimeSeconds = parseInt(localStorage.getItem('lifetime_fokus_v4')) || 0;
-        let lastStudyDate = localStorage.getItem('last_study_date_v4'); // Format: YYYY-MM-DD
-        let currentStreak = parseInt(localStorage.getItem('current_streak_v4')) || 0;
+        // --- DATA & FILE SYSTEM ---
+        let tasks = JSON.parse(localStorage.getItem('tasks_quest_v5')) || [];
+        let lifetimeSeconds = parseInt(localStorage.getItem('lifetime_fokus_v5')) || 0;
+        let lastStudyDate = localStorage.getItem('last_study_date_v5');
+        let currentStreak = parseInt(localStorage.getItem('current_streak_v5')) || 0;
+        let moodHistory = JSON.parse(localStorage.getItem('mood_history_v5')) || [];
         
-        // --- TIMER STATE ---
+        let fileHandle = null; // Für File System Access API
+
+        // --- TIMER ---
         let timerSeconds = 25 * 60;
         let timerRunning = false;
         let timerInterval;
         let currentTaskId = null;
-        let isPauseMode = false;
+        let currentMood = 'neutral';
+        const XP_PER_LEVEL = 1000;
 
-        const XP_PER_LEVEL = 1000; // Erhöht für Realismus
-
-        // --- UI ELEMENTS ---
+        // UI
         const taskList = document.getElementById('taskList');
         const timerDisplay = document.getElementById('timerDisplay');
         const timerToggle = document.getElementById('timerToggle');
-        const activeTaskLabel = document.getElementById('activeTaskLabel');
-        const lifetimeDisplay = document.getElementById('lifetimeDisplay');
-        const streakDisplay = document.getElementById('streakDisplay');
         const modal = document.getElementById('modalOverlay');
 
-        function updateClock() {
-            if(document.getElementById('clock'))
-                document.getElementById('clock').innerText = new Date().toLocaleTimeString('de-DE');
-        }
-        setInterval(updateClock, 1000);
-
-        // --- STREAK LOGIC ---
-        function checkStreak() {
-            const today = new Date().toISOString().split('T')[0];
-            
-            if (!lastStudyDate) {
-                // Erster Start überhaupt
-                currentStreak = 0;
-            } else {
-                const lastDate = new Date(lastStudyDate);
-                const todayDate = new Date(today);
-                const diffTime = Math.abs(todayDate - lastDate);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                if (diffDays === 1) {
-                    // Genau ein Tag später -> Streak bleibt erhalten (wird beim Lernen erhöht)
-                } else if (diffDays > 1) {
-                    // Tag übersprungen -> Streak verloren
-                    currentStreak = 0;
-                }
-            }
-            updateStreakUI();
-        }
-
-        function recordStudySession() {
-            const today = new Date().toISOString().split('T')[0];
-            
-            if (lastStudyDate !== today) {
-                // Wenn heute noch nicht gelernt wurde
-                currentStreak++;
-                lastStudyDate = today;
-                localStorage.setItem('last_study_date_v4', lastStudyDate);
-                localStorage.setItem('current_streak_v4', currentStreak);
+        // --- FILE SYSTEM ACCESS API ---
+        async function setupFileHandle() {
+            try {
+                // Öffnet den Datei-Speichern Dialog
+                fileHandle = await window.showSaveFilePicker({
+                    suggestedName: 'focus_flow_data.json',
+                    types: [{
+                        description: 'JSON Files',
+                        accept: {'application/json': ['.json']},
+                    }],
+                });
+                document.getElementById('syncStatus').innerText = "Verbunden";
+                document.getElementById('syncStatus').parentElement.classList.add('file-status-active');
                 
-                // Kleiner Effekt bei Streak-Erhöhung
-                triggerConfetti();
-            }
-            updateStreakUI();
-        }
-
-        function updateStreakUI() {
-            streakDisplay.innerText = `🔥 ${currentStreak} Tag${currentStreak !== 1 ? 'e' : ''}`;
-            if (currentStreak > 0) {
-                streakDisplay.parentElement.classList.add('text-orange-400');
+                // Einmalig Daten in die neue Datei schreiben
+                await writeToFile();
+            } catch (err) {
+                console.error("Datei-Zugriff abgelehnt", err);
             }
         }
 
-        // --- REMAINDER OF LOGIC ---
-        function formatFullTime(totalSeconds) {
-            const h = Math.floor(totalSeconds / 3600);
-            const m = Math.floor((totalSeconds % 3600) / 60);
-            const s = totalSeconds % 60;
-            return h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`;
+        async function writeToFile() {
+            if (!fileHandle) return;
+            try {
+                const writable = await fileHandle.createWritable();
+                const data = {
+                    tasks,
+                    lifetimeSeconds,
+                    moodHistory,
+                    currentStreak,
+                    lastStudyDate,
+                    updatedAt: new Date().toISOString()
+                };
+                await writable.write(JSON.stringify(data, null, 2));
+                await writable.close();
+            } catch (err) {
+                console.error("Fehler beim Schreiben", err);
+            }
         }
 
-        function getRank(level) {
-            if (level >= 50) return "GOTTGLEICH";
-            if (level >= 20) return "Fokus-Legende";
-            if (level >= 10) return "Experte";
-            if (level >= 5) return "Fortgeschritten";
-            return "Anfänger";
-        }
-
-        function updateLifetimeUI() {
-            lifetimeDisplay.innerText = formatFullTime(lifetimeSeconds);
-            const level = Math.floor(lifetimeSeconds / XP_PER_LEVEL) + 1;
-            const currentXP = lifetimeSeconds % XP_PER_LEVEL;
-            const progress = (currentXP / XP_PER_LEVEL) * 100;
+        // --- CORE SAVING ---
+        async function saveData() {
+            // Immer LocalStorage als Backup
+            localStorage.setItem('tasks_quest_v5', JSON.stringify(tasks));
+            localStorage.setItem('lifetime_fokus_v5', lifetimeSeconds);
+            localStorage.setItem('current_streak_v5', currentStreak);
+            localStorage.setItem('last_study_date_v5', lastStudyDate);
+            localStorage.setItem('mood_history_v5', JSON.stringify(moodHistory));
             
-            document.getElementById('levelText').innerText = level;
-            document.getElementById('xpText').innerText = `${currentXP} / ${XP_PER_LEVEL} EP`;
-            document.getElementById('levelBar').style.width = `${progress}%`;
-            document.getElementById('rankBadge').innerText = getRank(level);
+            // Auto-Write in Datei falls verknüpft
+            if (fileHandle) await writeToFile();
             
-            localStorage.setItem('lifetime_fokus_v4', lifetimeSeconds);
+            renderTasks();
+            updateCharts();
         }
 
-        function triggerConfetti() {
-            confetti({
-                particleCount: 150,
-                spread: 70,
-                origin: { y: 0.6 },
-                colors: ['#4f46e5', '#f59e0b', '#ffffff']
-            });
+        async function importData() {
+            try {
+                const [handle] = await window.showOpenFilePicker();
+                const file = await handle.getFile();
+                const content = await file.text();
+                const data = JSON.parse(content);
+                
+                tasks = data.tasks || [];
+                lifetimeSeconds = data.lifetimeSeconds || 0;
+                moodHistory = data.moodHistory || [];
+                currentStreak = data.currentStreak || 0;
+                lastStudyDate = data.lastStudyDate || null;
+                
+                fileHandle = handle; // Automatisch verknüpfen
+                document.getElementById('syncStatus').innerText = "Verbunden";
+                
+                saveData();
+            } catch (err) {
+                console.log("Import abgebrochen");
+            }
+        }
+
+        function exportDataManually() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({tasks, lifetimeSeconds, moodHistory, currentStreak}));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "manual_backup.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        // --- UI LOGIC ---
+        function checkPrediction(val) {
+            const box = document.getElementById('predictionBox');
+            if (val.length < 2) { box.classList.add('hidden'); return; }
+            const match = tasks.find(t => t.text.toLowerCase().includes(val.toLowerCase().trim()));
+            if (match) {
+                document.getElementById('prevTime').innerText = match.minutes;
+                box.classList.remove('hidden');
+            } else {
+                box.classList.add('hidden');
+            }
+        }
+
+        function usePrediction() {
+            const val = document.getElementById('taskInput').value;
+            const match = tasks.find(t => t.text.toLowerCase().includes(val.toLowerCase().trim()));
+            document.getElementById('timeInput').value = match.minutes;
+            document.getElementById('predictionBox').classList.add('hidden');
         }
 
         function renderTasks() {
             taskList.innerHTML = '';
             document.getElementById('taskCount').innerText = tasks.length;
-            if (tasks.length === 0) {
-                taskList.innerHTML = '<div class="text-center py-20 text-slate-400 italic">Quest Log leer.</div>';
-                updateChart();
-                return;
-            }
             tasks.sort((a, b) => b.priority - a.priority);
+            
             tasks.forEach((task) => {
                 const div = document.createElement('div');
-                div.className = `task-item group flex items-center justify-between p-5 rounded-[2rem] shadow-sm transition-all ${task.id === currentTaskId ? 'ring-4 ring-indigo-500 bg-white scale-[1.02]' : ''} ${getPriorityClass(task.priority, task.completed)}`;
+                div.className = `task-item flex items-center justify-between p-5 rounded-[1.5rem] transition-all ${task.id === currentTaskId ? 'ring-4 ring-indigo-400 bg-white' : ''} ${getPriorityClass(task.priority, task.completed)}`;
                 div.innerHTML = `
-                    <div class="flex items-center gap-5 flex-1" onclick="selectTask(${task.id})">
-                        <div class="w-12 h-12 rounded-2xl ${task.completed ? 'bg-emerald-500 text-white' : 'bg-white/50'} flex items-center justify-center font-black">
+                    <div class="flex items-center gap-4 flex-1" onclick="selectTask(${task.id})">
+                        <div class="w-10 h-10 rounded-xl ${task.completed ? 'bg-emerald-500 text-white' : 'bg-white/50'} flex items-center justify-center font-bold">
                             ${task.completed ? '✓' : task.minutes}
                         </div>
                         <div>
-                            <p class="font-black ${task.completed ? 'line-through opacity-30' : 'text-slate-800'}">${task.text}</p>
-                            <p class="text-[9px] uppercase font-black tracking-widest opacity-40">${task.completed ? 'Abgeschlossen' : 'Aktivieren'}</p>
+                            <p class="font-bold text-sm ${task.completed ? 'line-through opacity-30' : 'text-slate-800'}">${task.text}</p>
+                            <p class="text-[9px] uppercase font-bold opacity-40">${task.completed ? 'Erledigt' : 'Klicken zum Starten'}</p>
                         </div>
                     </div>
-                    <button onclick="toggleTask(${task.id}, event)" class="w-10 h-10 flex items-center justify-center bg-white/50 rounded-xl hover:bg-white transition">
-                        ${task.completed ? '↩️' : '✅'}
-                    </button>
+                    <div class="flex gap-2">
+                        <button onclick="toggleTask(${task.id}, event)" class="w-9 h-9 flex items-center justify-center bg-white/50 rounded-lg">${task.completed ? '↩️' : '✅'}</button>
+                        <button onclick="deleteTask(${task.id}, event)" class="w-9 h-9 flex items-center justify-center bg-rose-50 text-rose-500 rounded-lg">🗑️</button>
+                    </div>
                 `;
                 taskList.appendChild(div);
             });
-            localStorage.setItem('tasks_quest_v4', JSON.stringify(tasks));
-            updateChart();
-        }
-
-        function getPriorityClass(p, completed) {
-            if (completed) return 'bg-slate-50 border-slate-100';
-            if (p == 3) return 'bg-gradient-to-r from-rose-500 to-orange-500 text-white border-none shadow-lg';
-            if (p == 2) return 'bg-white border-indigo-100 border';
-            return 'bg-slate-50 text-slate-600 border-slate-200 border';
+            updateStatsUI();
         }
 
         function selectTask(id) {
@@ -347,67 +363,43 @@
             if (!task || task.completed) return;
             currentTaskId = id;
             timerSeconds = task.minutes * 60;
-            isPauseMode = false;
-            activeTaskLabel.innerText = `QUEST: ${task.text}`;
-            document.getElementById('timerCard').classList.remove('bg-emerald-600');
-            document.getElementById('timerCard').classList.add('bg-indigo-900');
+            document.getElementById('activeTaskLabel').innerText = `FOKUS: ${task.text}`;
             updateTimerDisplay();
             renderTasks();
         }
 
-        document.getElementById('addTaskBtn').onclick = () => {
-            const text = document.getElementById('taskInput').value.trim();
-            const minutes = parseInt(document.getElementById('timeInput').value) || 25;
-            if (!text) return;
-            tasks.push({ text, priority: parseInt(document.getElementById('prioritySelect').value), minutes, completed: false, id: Date.now() });
-            document.getElementById('taskInput').value = '';
-            document.getElementById('timeInput').value = '';
-            renderTasks();
-        };
+        function deleteTask(id, e) {
+            e.stopPropagation();
+            tasks = tasks.filter(t => t.id !== id);
+            if(currentTaskId === id) resetTimer();
+            saveData();
+        }
 
-        window.toggleTask = (id, e) => {
+        function toggleTask(id, e) {
             if(e) e.stopPropagation();
             const task = tasks.find(t => t.id === id);
             if (task) {
                 task.completed = !task.completed;
                 if(task.completed) {
-                    triggerConfetti();
-                    recordStudySession(); // Streak beim Abhaken sichern!
+                    confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+                    recordStudySession();
                 }
             }
-            renderTasks();
-        };
-
-        function resetTimer() {
-            clearInterval(timerInterval);
-            timerRunning = false;
-            timerSeconds = 25 * 60;
-            currentTaskId = null;
-            activeTaskLabel.innerText = 'Bereit für Fokus';
-            timerToggle.innerText = 'Start';
-            document.getElementById('timerCard').classList.replace('bg-emerald-600', 'bg-indigo-900');
-            updateTimerDisplay();
+            saveData();
         }
 
-        function updateTimerDisplay() {
-            const m = Math.floor(timerSeconds / 60);
-            const s = timerSeconds % 60;
-            timerDisplay.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-        }
-
+        // --- TIMER ENGINE ---
         timerToggle.onclick = () => {
             timerRunning = !timerRunning;
             timerToggle.innerText = timerRunning ? 'Pause' : 'Start';
             if (timerRunning) {
-                // Streak sichern sobald man anfängt zu lernen
-                if (!isPauseMode) recordStudySession();
-                
                 timerInterval = setInterval(() => {
                     if (timerSeconds > 0) {
                         timerSeconds--;
-                        if (!isPauseMode) {
-                            lifetimeSeconds++;
-                            if (lifetimeSeconds % 10 === 0) updateLifetimeUI(); 
+                        lifetimeSeconds++;
+                        if(currentTaskId) {
+                            const task = tasks.find(t => t.id === currentTaskId);
+                            if(task) task.actualSeconds = (task.actualSeconds || 0) + 1;
                         }
                         updateTimerDisplay();
                     } else {
@@ -416,73 +408,127 @@
                 }, 1000);
             } else {
                 clearInterval(timerInterval);
-                updateLifetimeUI();
+                saveData();
             }
         };
 
         function handleTimerEnd() {
             clearInterval(timerInterval);
             timerRunning = false;
-            timerToggle.innerText = 'Start';
-            updateLifetimeUI();
-            if (isPauseMode) {
-                alert("Pause beendet!");
-                resetTimer();
-            } else {
-                modal.style.display = 'flex';
-            }
+            modal.style.display = 'flex';
+        }
+
+        function setMood(m) {
+            currentMood = m;
+            document.querySelectorAll('.mood-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
         }
 
         document.getElementById('btnFinished').onclick = () => {
+            moodHistory.push({ mood: currentMood, time: new Date().getHours(), date: new Date().toISOString().split('T')[0] });
             if (currentTaskId) toggleTask(currentTaskId);
             modal.style.display = 'none';
             resetTimer();
+            saveData();
         };
 
-        document.getElementById('btnPause').onclick = () => {
+        function closeModal() {
             modal.style.display = 'none';
-            isPauseMode = true;
-            timerSeconds = 5 * 60;
-            activeTaskLabel.innerText = '☕ PAUSE';
-            document.getElementById('timerCard').classList.replace('bg-indigo-900', 'bg-emerald-600');
-            updateTimerDisplay();
-            timerToggle.click();
-        };
+            resetTimer();
+            saveData();
+        }
 
-        let myChart;
-        function initChart() {
-            const ctx = document.getElementById('statsChart').getContext('2d');
-            myChart = new Chart(ctx, {
+        // --- CHARTS ---
+        let mainChart, moodChart, timeChart;
+        function initCharts() {
+            const ctx1 = document.getElementById('statsChart').getContext('2d');
+            mainChart = new Chart(ctx1, {
                 type: 'doughnut',
-                data: { labels: ['Offen', 'Erledigt'], datasets: [{ data: [1, 0], backgroundColor: ['#e2e8f0', '#4f46e5'], borderWidth: 0 }] },
-                options: { cutout: '80%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                data: { datasets: [{ data: [1, 0], backgroundColor: ['#e2e8f0', '#4f46e5'], borderWidth: 0 }] },
+                options: { cutout: '80%', plugins: { legend: { display: false } } }
+            });
+            const ctxMood = document.getElementById('moodStatsChart').getContext('2d');
+            moodChart = new Chart(ctxMood, {
+                type: 'bar',
+                data: { labels: ['😊', '😐', '😴'], datasets: [{ data: [0,0,0], backgroundColor: '#818cf8' }] },
+                options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            });
+            const ctxTime = document.getElementById('timeStatsChart').getContext('2d');
+            timeChart = new Chart(ctxTime, {
+                type: 'line',
+                data: { labels: Array.from({length: 24}, (_, i) => i + "h"), datasets: [{ data: Array(24).fill(0), borderColor: '#4f46e5', tension: 0.3 }] },
+                options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
             });
         }
 
-        function updateChart() {
-            const doneTasks = tasks.filter(t => t.completed);
-            const totalCount = tasks.length;
-            const percent = totalCount > 0 ? Math.round((doneTasks.length / totalCount) * 100) : 0;
-            document.getElementById('percentText').innerText = `${percent}%`;
-            if (myChart) {
-                myChart.data.datasets[0].data = totalCount === 0 ? [1, 0] : [totalCount - doneTasks.length, doneTasks.length];
-                myChart.update();
-            }
+        function updateCharts() {
+            const done = tasks.filter(t => t.completed).length;
+            const total = tasks.length;
+            document.getElementById('percentText').innerText = (total > 0 ? Math.round((done/total)*100) : 0) + "%";
+            if(mainChart) { mainChart.data.datasets[0].data = total === 0 ? [1,0] : [total-done, done]; mainChart.update(); }
+            const moods = { happy: 0, neutral: 0, tired: 0 };
+            moodHistory.forEach(h => moods[h.mood]++);
+            if(moodChart) { moodChart.data.datasets[0].data = [moods.happy, moods.neutral, moods.tired]; moodChart.update(); }
+            const hourStats = Array(24).fill(0);
+            moodHistory.forEach(h => hourStats[h.time]++);
+            if(timeChart) { timeChart.data.datasets[0].data = hourStats; timeChart.update(); }
         }
 
+        // --- HELPERS ---
+        function getPriorityClass(p, comp) {
+            if (comp) return 'bg-slate-50 border border-slate-100';
+            if (p == 3) return 'bg-gradient-to-r from-rose-500 to-orange-500 text-white shadow-lg border-none';
+            return 'bg-white border border-indigo-50';
+        }
+        function resetTimer() {
+            clearInterval(timerInterval);
+            timerRunning = false;
+            timerSeconds = 25 * 60;
+            currentTaskId = null;
+            document.getElementById('activeTaskLabel').innerText = 'Warte auf Quest...';
+            timerToggle.innerText = 'Start';
+            updateTimerDisplay();
+        }
+        function updateTimerDisplay() {
+            const m = Math.floor(timerSeconds / 60);
+            const s = timerSeconds % 60;
+            timerDisplay.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+        function recordStudySession() {
+            const today = new Date().toISOString().split('T')[0];
+            if (lastStudyDate !== today) { currentStreak++; lastStudyDate = today; }
+        }
+        function updateStatsUI() {
+            document.getElementById('lifetimeDisplay').innerText = Math.floor(lifetimeSeconds/60) + "m " + (lifetimeSeconds%60) + "s";
+            const level = Math.floor(lifetimeSeconds / XP_PER_LEVEL) + 1;
+            document.getElementById('levelText').innerText = level;
+            document.getElementById('xpText').innerText = `${lifetimeSeconds % XP_PER_LEVEL} / 1000 EP`;
+            document.getElementById('levelBar').style.width = `${(lifetimeSeconds % XP_PER_LEVEL) / 10}%`;
+            document.getElementById('streakDisplay').innerText = `🔥 ${currentStreak} Tage`;
+        }
+
+        document.getElementById('addTaskBtn').onclick = () => {
+            const text = document.getElementById('taskInput').value.trim();
+            const minutes = parseInt(document.getElementById('timeInput').value) || 25;
+            if (!text) return;
+            tasks.push({ text, priority: parseInt(document.getElementById('prioritySelect').value), minutes, completed: false, id: Date.now(), actualSeconds: 0 });
+            document.getElementById('taskInput').value = '';
+            document.getElementById('timeInput').value = '';
+            saveData();
+        };
+
         window.onload = () => {
-            checkStreak();
-            initChart();
+            initCharts();
             renderTasks();
             updateTimerDisplay();
-            updateClock();
-            updateLifetimeUI();
+            updateCharts();
+            setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('de-DE'); }, 1000);
         };
     </script>
     <script>
         if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/Focus-Flow-/serviceWorker.js");
+    navigator.serviceWorker.register("/Focus-Flow-/serviceWorker.js")
       .then(reg => console.log("Service Worker registriert:", reg))
       .catch(err => console.error("Service Worker Fehler:", err));
   });
